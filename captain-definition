@@ -1,4 +1,5 @@
 {
   "schemaVersion": 2,
-  "dockerfilePath": "./backend-api-lab/Dockerfile"
+  "dockerfilePath": "./backend-api-lab/Dockerfile",
+  "dockerBuildPath": "./backend-api-lab"
 }
