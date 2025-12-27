@@ -3,43 +3,53 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PostHog PoC Dashboard</title>
+  <title>PostHog Error Tracking PoC</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
     * { font-family: 'Tajawal', sans-serif; }
-    .glass { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); }
-    .gradient-bg { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); }
+    .glass { background: rgba(255,255,255,0.05); backdrop-filter: blur(10px); }
+    .gradient-bg { background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%); }
     .card-hover { transition: all 0.3s ease; }
-    .card-hover:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
+    .card-hover:hover { transform: translateY(-3px); box-shadow: 0 15px 30px rgba(0,0,0,0.4); }
     .pulse { animation: pulse 2s infinite; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     .toast { animation: slideIn 0.3s ease; }
     @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
     pre { direction: ltr; text-align: left; }
     code { direction: ltr; }
+    .error-card { border-right: 4px solid; }
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: rgba(255,255,255,0.1); border-radius: 3px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 3px; }
   </style>
 </head>
 <body class="gradient-bg min-h-screen text-white">
   <!-- Toast Container -->
-  <div id="toastContainer" class="fixed top-4 left-4 z-50 flex flex-col gap-2"></div>
+  <div id="toastContainer" class="fixed top-4 left-4 z-50 flex flex-col gap-2 max-w-sm"></div>
 
   <!-- Header -->
-  <header class="glass border-b border-white/10">
+  <header class="glass border-b border-white/10 sticky top-0 z-40">
     <div class="container mx-auto px-6 py-4">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-4">
-          <div class="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center">
-            <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          <div class="w-12 h-12 bg-gradient-to-br from-red-500 to-orange-600 rounded-xl flex items-center justify-center">
+            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
             </svg>
           </div>
           <div>
-            <h1 class="text-2xl font-bold">PostHog PoC</h1>
-            <p class="text-sm text-gray-400">لوحة تحكم الاختبار</p>
+            <h1 class="text-2xl font-bold">PostHog Error Tracking</h1>
+            <p class="text-sm text-gray-400">لوحة اختبار تتبع الأخطاء</p>
           </div>
         </div>
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-3">
+          <button onclick="generateRandomErrors(5)" class="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition text-sm flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+            توليد 5 أخطاء عشوائية
+          </button>
           <div id="statusIndicator" class="flex items-center gap-2 px-4 py-2 glass rounded-full">
             <span class="w-2 h-2 bg-green-500 rounded-full pulse"></span>
             <span class="text-sm">متصل</span>
@@ -52,306 +62,411 @@
   <!-- Main Content -->
   <main class="container mx-auto px-6 py-8">
     <!-- Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-      <div class="glass rounded-2xl p-6 border border-white/10">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div class="glass rounded-2xl p-5 border border-white/10">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-gray-400 text-sm">الطلبات المرسلة</p>
-            <p id="requestCount" class="text-3xl font-bold mt-1">0</p>
+            <p class="text-gray-400 text-xs">الطلبات</p>
+            <p id="requestCount" class="text-2xl font-bold mt-1">0</p>
           </div>
-          <div class="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center">
-            <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
+            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
             </svg>
           </div>
         </div>
       </div>
-      <div class="glass rounded-2xl p-6 border border-white/10">
+      <div class="glass rounded-2xl p-5 border border-white/10">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-gray-400 text-sm">الناجحة</p>
-            <p id="successCount" class="text-3xl font-bold mt-1 text-green-400">0</p>
+            <p class="text-gray-400 text-xs">ناجحة</p>
+            <p id="successCount" class="text-2xl font-bold mt-1 text-green-400">0</p>
           </div>
-          <div class="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center">
-            <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
             </svg>
           </div>
         </div>
       </div>
-      <div class="glass rounded-2xl p-6 border border-white/10">
+      <div class="glass rounded-2xl p-5 border border-white/10">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-gray-400 text-sm">الأخطاء</p>
-            <p id="errorCount" class="text-3xl font-bold mt-1 text-red-400">0</p>
+            <p class="text-gray-400 text-xs">أخطاء</p>
+            <p id="errorCount" class="text-2xl font-bold mt-1 text-red-400">0</p>
           </div>
-          <div class="w-12 h-12 bg-red-500/20 rounded-xl flex items-center justify-center">
-            <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center">
+            <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
           </div>
         </div>
       </div>
-      <div class="glass rounded-2xl p-6 border border-white/10">
+      <div class="glass rounded-2xl p-5 border border-white/10">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-gray-400 text-sm">متوسط الاستجابة</p>
-            <p id="avgResponse" class="text-3xl font-bold mt-1 text-yellow-400">0ms</p>
+            <p class="text-gray-400 text-xs">متوسط الاستجابة</p>
+            <p id="avgResponse" class="text-2xl font-bold mt-1 text-yellow-400">0ms</p>
           </div>
-          <div class="w-12 h-12 bg-yellow-500/20 rounded-xl flex items-center justify-center">
-            <svg class="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- API Services Grid -->
-    <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
-      <svg class="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-      </svg>
-      خدمات API المتاحة
-    </h2>
-    
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-      <!-- Health Check -->
-      <div class="glass rounded-2xl p-6 border border-white/10 card-hover">
-        <div class="flex items-center gap-3 mb-4">
-          <div class="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
-            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
-            </svg>
-          </div>
-          <div>
-            <h3 class="font-bold">Health Check</h3>
-            <p class="text-xs text-gray-400">GET /health</p>
-          </div>
-        </div>
-        <p class="text-sm text-gray-300 mb-4">فحص حالة الخادم والتأكد من جاهزيته</p>
-        <button onclick="callAPI('/health', 'GET')" class="w-full py-2 bg-green-500/20 hover:bg-green-500/30 text-green-400 rounded-lg transition">
-          تنفيذ
-        </button>
-      </div>
-
-      <!-- Stats -->
-      <div class="glass rounded-2xl p-6 border border-white/10 card-hover">
-        <div class="flex items-center gap-3 mb-4">
-          <div class="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
-            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-            </svg>
-          </div>
-          <div>
-            <h3 class="font-bold">Server Stats</h3>
-            <p class="text-xs text-gray-400">GET /api/stats</p>
-          </div>
-        </div>
-        <p class="text-sm text-gray-300 mb-4">عرض إحصائيات الخادم والذاكرة</p>
-        <button onclick="callAPI('/api/stats', 'GET')" class="w-full py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition">
-          تنفيذ
-        </button>
-      </div>
-
-      <!-- Orders -->
-      <div class="glass rounded-2xl p-6 border border-white/10 card-hover">
-        <div class="flex items-center gap-3 mb-4">
-          <div class="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
-            <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
-            </svg>
-          </div>
-          <div>
-            <h3 class="font-bold">Orders</h3>
-            <p class="text-xs text-gray-400">GET /api/orders</p>
-          </div>
-        </div>
-        <p class="text-sm text-gray-300 mb-4">جلب قائمة الطلبات</p>
-        <div class="flex gap-2 mb-3">
-          <input type="number" id="orderCount" value="5" min="1" max="20" class="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" placeholder="العدد">
-        </div>
-        <button onclick="callAPI('/api/orders?count=' + document.getElementById('orderCount').value, 'GET')" class="w-full py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded-lg transition">
-          تنفيذ
-        </button>
-      </div>
-
-      <!-- Users -->
-      <div class="glass rounded-2xl p-6 border border-white/10 card-hover">
-        <div class="flex items-center gap-3 mb-4">
-          <div class="w-10 h-10 bg-indigo-500/20 rounded-lg flex items-center justify-center">
-            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
-            </svg>
-          </div>
-          <div>
-            <h3 class="font-bold">Users</h3>
-            <p class="text-xs text-gray-400">GET /api/users</p>
-          </div>
-        </div>
-        <p class="text-sm text-gray-300 mb-4">جلب قائمة المستخدمين</p>
-        <div class="flex gap-2 mb-3">
-          <input type="number" id="userLimit" value="10" min="1" max="50" class="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" placeholder="الحد">
-        </div>
-        <button onclick="callAPI('/api/users?limit=' + document.getElementById('userLimit').value, 'GET')" class="w-full py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 rounded-lg transition">
-          تنفيذ
-        </button>
-      </div>
-
-      <!-- Products -->
-      <div class="glass rounded-2xl p-6 border border-white/10 card-hover">
-        <div class="flex items-center gap-3 mb-4">
-          <div class="w-10 h-10 bg-pink-500/20 rounded-lg flex items-center justify-center">
-            <svg class="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-            </svg>
-          </div>
-          <div>
-            <h3 class="font-bold">Products</h3>
-            <p class="text-xs text-gray-400">GET /api/products</p>
-          </div>
-        </div>
-        <p class="text-sm text-gray-300 mb-4">جلب قائمة المنتجات</p>
-        <div class="flex gap-2 mb-3">
-          <select id="productCategory" class="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm">
-            <option value="all">الكل</option>
-            <option value="electronics">إلكترونيات</option>
-            <option value="clothing">ملابس</option>
-            <option value="books">كتب</option>
-          </select>
-        </div>
-        <button onclick="callAPI('/api/products?category=' + document.getElementById('productCategory').value, 'GET')" class="w-full py-2 bg-pink-500/20 hover:bg-pink-500/30 text-pink-400 rounded-lg transition">
-          تنفيذ
-        </button>
-      </div>
-
-      <!-- Slow Request -->
-      <div class="glass rounded-2xl p-6 border border-white/10 card-hover">
-        <div class="flex items-center gap-3 mb-4">
           <div class="w-10 h-10 bg-yellow-500/20 rounded-lg flex items-center justify-center">
             <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
           </div>
-          <div>
-            <h3 class="font-bold">Slow Request</h3>
-            <p class="text-xs text-gray-400">GET /api/slow</p>
-          </div>
         </div>
-        <p class="text-sm text-gray-300 mb-4">محاكاة طلب بطيء</p>
-        <div class="flex gap-2 mb-3">
-          <input type="number" id="slowMs" value="2000" min="100" max="10000" step="100" class="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" placeholder="مللي ثانية">
-        </div>
-        <button onclick="callAPI('/api/slow?ms=' + document.getElementById('slowMs').value, 'GET')" class="w-full py-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 rounded-lg transition">
-          تنفيذ
-        </button>
       </div>
+    </div>
 
-      <!-- Error Simulation -->
-      <div class="glass rounded-2xl p-6 border border-white/10 card-hover">
-        <div class="flex items-center gap-3 mb-4">
-          <div class="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center">
-            <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-            </svg>
+    <!-- Tabs -->
+    <div class="flex gap-2 mb-6 overflow-x-auto pb-2">
+      <button onclick="showTab('errors')" id="tab-errors" class="tab-btn px-4 py-2 rounded-lg bg-red-500/20 text-red-400 whitespace-nowrap">
+        🚨 أنواع الأخطاء
+      </button>
+      <button onclick="showTab('apis')" id="tab-apis" class="tab-btn px-4 py-2 rounded-lg bg-white/5 text-gray-400 hover:bg-white/10 whitespace-nowrap">
+        📡 خدمات API
+      </button>
+      <button onclick="showTab('batch')" id="tab-batch" class="tab-btn px-4 py-2 rounded-lg bg-white/5 text-gray-400 hover:bg-white/10 whitespace-nowrap">
+        📦 اختبار مجمع
+      </button>
+    </div>
+
+    <!-- Error Types Tab -->
+    <div id="panel-errors" class="tab-panel">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        
+        <!-- HTTP Errors -->
+        <div class="glass rounded-2xl p-5 border border-white/10 error-card border-r-red-500">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center">
+              <span class="text-red-400 font-bold">HTTP</span>
+            </div>
+            <div>
+              <h3 class="font-bold">HTTP Status Errors</h3>
+              <p class="text-xs text-gray-400">أخطاء رموز الحالة</p>
+            </div>
           </div>
-          <div>
-            <h3 class="font-bold">Error Simulation</h3>
-            <p class="text-xs text-gray-400">GET /api/error</p>
+          <div class="grid grid-cols-3 gap-2 mb-3">
+            <button onclick="triggerError('http/400')" class="py-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 rounded text-xs">400</button>
+            <button onclick="triggerError('http/401')" class="py-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 rounded text-xs">401</button>
+            <button onclick="triggerError('http/403')" class="py-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 rounded text-xs">403</button>
+            <button onclick="triggerError('http/404')" class="py-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 rounded text-xs">404</button>
+            <button onclick="triggerError('http/422')" class="py-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 rounded text-xs">422</button>
+            <button onclick="triggerError('http/429')" class="py-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 rounded text-xs">429</button>
+            <button onclick="triggerError('http/500')" class="py-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 rounded text-xs">500</button>
+            <button onclick="triggerError('http/502')" class="py-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 rounded text-xs">502</button>
+            <button onclick="triggerError('http/503')" class="py-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 rounded text-xs">503</button>
           </div>
         </div>
-        <p class="text-sm text-gray-300 mb-4">محاكاة أخطاء مختلفة</p>
-        <div class="flex gap-2 mb-3">
-          <select id="errorType" class="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm">
-            <option value="server">500 - Server Error</option>
-            <option value="notfound">404 - Not Found</option>
-            <option value="unauthorized">401 - Unauthorized</option>
-            <option value="forbidden">403 - Forbidden</option>
-            <option value="validation">422 - Validation</option>
-          </select>
+
+        <!-- Runtime Errors -->
+        <div class="glass rounded-2xl p-5 border border-white/10 error-card border-r-orange-500">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center">
+              <span class="text-orange-400 font-bold">JS</span>
+            </div>
+            <div>
+              <h3 class="font-bold">Runtime Errors</h3>
+              <p class="text-xs text-gray-400">أخطاء JavaScript</p>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <button onclick="triggerError('runtime/reference')" class="w-full py-2 bg-orange-500/10 hover:bg-orange-500/20 text-orange-300 rounded text-sm text-right px-3">ReferenceError</button>
+            <button onclick="triggerError('runtime/type')" class="w-full py-2 bg-orange-500/10 hover:bg-orange-500/20 text-orange-300 rounded text-sm text-right px-3">TypeError</button>
+            <button onclick="triggerError('runtime/syntax')" class="w-full py-2 bg-orange-500/10 hover:bg-orange-500/20 text-orange-300 rounded text-sm text-right px-3">SyntaxError</button>
+            <button onclick="triggerError('runtime/range')" class="w-full py-2 bg-orange-500/10 hover:bg-orange-500/20 text-orange-300 rounded text-sm text-right px-3">RangeError</button>
+          </div>
         </div>
-        <button onclick="callAPI('/api/error?type=' + document.getElementById('errorType').value, 'GET')" class="w-full py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition">
-          تنفيذ
-        </button>
+
+        <!-- Async Errors -->
+        <div class="glass rounded-2xl p-5 border border-white/10 error-card border-r-yellow-500">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-yellow-500/20 rounded-lg flex items-center justify-center">
+              <span class="text-yellow-400 font-bold">⏳</span>
+            </div>
+            <div>
+              <h3 class="font-bold">Async/Promise Errors</h3>
+              <p class="text-xs text-gray-400">أخطاء غير متزامنة</p>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <button onclick="triggerError('async/rejected')" class="w-full py-2 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-300 rounded text-sm text-right px-3">Promise Rejected</button>
+            <button onclick="triggerError('async/timeout')" class="w-full py-2 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-300 rounded text-sm text-right px-3">Async Timeout</button>
+            <button onclick="triggerError('async/chain')" class="w-full py-2 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-300 rounded text-sm text-right px-3">Chain Failure</button>
+            <button onclick="triggerError('async/all')" class="w-full py-2 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-300 rounded text-sm text-right px-3">Promise.all Fail</button>
+          </div>
+        </div>
+
+        <!-- Database Errors -->
+        <div class="glass rounded-2xl p-5 border border-white/10 error-card border-r-purple-500">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
+              <span class="text-purple-400 font-bold">DB</span>
+            </div>
+            <div>
+              <h3 class="font-bold">Database Errors</h3>
+              <p class="text-xs text-gray-400">أخطاء قاعدة البيانات</p>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <button onclick="triggerError('database/connection')" class="w-full py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 rounded text-sm text-right px-3">Connection Failed</button>
+            <button onclick="triggerError('database/timeout')" class="w-full py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 rounded text-sm text-right px-3">Query Timeout</button>
+            <button onclick="triggerError('database/duplicate')" class="w-full py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 rounded text-sm text-right px-3">Duplicate Entry</button>
+            <button onclick="triggerError('database/deadlock')" class="w-full py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 rounded text-sm text-right px-3">Deadlock</button>
+          </div>
+        </div>
+
+        <!-- Network Errors -->
+        <div class="glass rounded-2xl p-5 border border-white/10 error-card border-r-blue-500">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
+              <span class="text-blue-400 font-bold">🌐</span>
+            </div>
+            <div>
+              <h3 class="font-bold">Network Errors</h3>
+              <p class="text-xs text-gray-400">أخطاء الشبكة</p>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <button onclick="triggerError('network/dns')" class="w-full py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 rounded text-sm text-right px-3">DNS Lookup Failed</button>
+            <button onclick="triggerError('network/refused')" class="w-full py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 rounded text-sm text-right px-3">Connection Refused</button>
+            <button onclick="triggerError('network/timeout')" class="w-full py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 rounded text-sm text-right px-3">Connection Timeout</button>
+            <button onclick="triggerError('network/ssl')" class="w-full py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 rounded text-sm text-right px-3">SSL Certificate Error</button>
+          </div>
+        </div>
+
+        <!-- Auth Errors -->
+        <div class="glass rounded-2xl p-5 border border-white/10 error-card border-r-pink-500">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-pink-500/20 rounded-lg flex items-center justify-center">
+              <span class="text-pink-400 font-bold">🔐</span>
+            </div>
+            <div>
+              <h3 class="font-bold">Auth Errors</h3>
+              <p class="text-xs text-gray-400">أخطاء المصادقة</p>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <button onclick="triggerError('auth/missing_token')" class="w-full py-2 bg-pink-500/10 hover:bg-pink-500/20 text-pink-300 rounded text-sm text-right px-3">Missing Token</button>
+            <button onclick="triggerError('auth/invalid_token')" class="w-full py-2 bg-pink-500/10 hover:bg-pink-500/20 text-pink-300 rounded text-sm text-right px-3">Invalid Token</button>
+            <button onclick="triggerError('auth/expired_token')" class="w-full py-2 bg-pink-500/10 hover:bg-pink-500/20 text-pink-300 rounded text-sm text-right px-3">Expired Token</button>
+            <button onclick="triggerError('auth/account_locked')" class="w-full py-2 bg-pink-500/10 hover:bg-pink-500/20 text-pink-300 rounded text-sm text-right px-3">Account Locked</button>
+          </div>
+        </div>
+
+        <!-- Business Errors -->
+        <div class="glass rounded-2xl p-5 border border-white/10 error-card border-r-teal-500">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-teal-500/20 rounded-lg flex items-center justify-center">
+              <span class="text-teal-400 font-bold">💼</span>
+            </div>
+            <div>
+              <h3 class="font-bold">Business Errors</h3>
+              <p class="text-xs text-gray-400">أخطاء منطق العمل</p>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <button onclick="triggerError('business/insufficient_funds')" class="w-full py-2 bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 rounded text-sm text-right px-3">Insufficient Funds</button>
+            <button onclick="triggerError('business/out_of_stock')" class="w-full py-2 bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 rounded text-sm text-right px-3">Out of Stock</button>
+            <button onclick="triggerError('business/limit_exceeded')" class="w-full py-2 bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 rounded text-sm text-right px-3">Limit Exceeded</button>
+            <button onclick="triggerError('business/expired_offer')" class="w-full py-2 bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 rounded text-sm text-right px-3">Expired Offer</button>
+          </div>
+        </div>
+
+        <!-- Resource Errors -->
+        <div class="glass rounded-2xl p-5 border border-white/10 error-card border-r-indigo-500">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-indigo-500/20 rounded-lg flex items-center justify-center">
+              <span class="text-indigo-400 font-bold">💾</span>
+            </div>
+            <div>
+              <h3 class="font-bold">Resource Errors</h3>
+              <p class="text-xs text-gray-400">أخطاء الموارد</p>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <button onclick="triggerError('resource/memory')" class="w-full py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 rounded text-sm text-right px-3">Out of Memory</button>
+            <button onclick="triggerError('resource/disk')" class="w-full py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 rounded text-sm text-right px-3">Disk Full</button>
+            <button onclick="triggerError('resource/cpu')" class="w-full py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 rounded text-sm text-right px-3">CPU Overload</button>
+            <button onclick="triggerError('resource/connections')" class="w-full py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 rounded text-sm text-right px-3">Pool Exhausted</button>
+          </div>
+        </div>
+
+        <!-- Validation Errors -->
+        <div class="glass rounded-2xl p-5 border border-white/10 error-card border-r-emerald-500">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-emerald-500/20 rounded-lg flex items-center justify-center">
+              <span class="text-emerald-400 font-bold">✓</span>
+            </div>
+            <div>
+              <h3 class="font-bold">Validation Errors</h3>
+              <p class="text-xs text-gray-400">أخطاء التحقق</p>
+            </div>
+          </div>
+          <div class="space-y-2 mb-3">
+            <input type="email" id="valEmail" class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded text-sm" placeholder="بريد غير صالح">
+            <input type="text" id="valPassword" class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded text-sm" placeholder="كلمة مرور قصيرة">
+          </div>
+          <button onclick="triggerValidation()" class="w-full py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 rounded text-sm">اختبار التحقق</button>
+        </div>
+
       </div>
+    </div>
 
-      <!-- User Registration -->
-      <div class="glass rounded-2xl p-6 border border-white/10 card-hover">
-        <div class="flex items-center gap-3 mb-4">
-          <div class="w-10 h-10 bg-teal-500/20 rounded-lg flex items-center justify-center">
-            <svg class="w-5 h-5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
-            </svg>
+    <!-- APIs Tab -->
+    <div id="panel-apis" class="tab-panel hidden">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        
+        <div class="glass rounded-2xl p-5 border border-white/10 card-hover">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+              <span class="text-green-400">❤️</span>
+            </div>
+            <div>
+              <h3 class="font-bold">Health Check</h3>
+              <p class="text-xs text-gray-400">GET /health</p>
+            </div>
           </div>
-          <div>
-            <h3 class="font-bold">Register User</h3>
-            <p class="text-xs text-gray-400">POST /api/register</p>
+          <button onclick="callAPI('/health')" class="w-full py-2 bg-green-500/20 hover:bg-green-500/30 text-green-400 rounded-lg transition">تنفيذ</button>
+        </div>
+
+        <div class="glass rounded-2xl p-5 border border-white/10 card-hover">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
+              <span class="text-blue-400">📊</span>
+            </div>
+            <div>
+              <h3 class="font-bold">Server Stats</h3>
+              <p class="text-xs text-gray-400">GET /api/stats</p>
+            </div>
           </div>
+          <button onclick="callAPI('/api/stats')" class="w-full py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition">تنفيذ</button>
         </div>
-        <p class="text-sm text-gray-300 mb-4">تسجيل مستخدم جديد</p>
-        <div class="space-y-2 mb-3">
-          <input type="text" id="regName" class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" placeholder="الاسم">
-          <input type="email" id="regEmail" class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" placeholder="البريد الإلكتروني">
+
+        <div class="glass rounded-2xl p-5 border border-white/10 card-hover">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
+              <span class="text-purple-400">🛒</span>
+            </div>
+            <div>
+              <h3 class="font-bold">Orders</h3>
+              <p class="text-xs text-gray-400">GET /api/orders</p>
+            </div>
+          </div>
+          <button onclick="callAPI('/api/orders?count=5')" class="w-full py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded-lg transition">تنفيذ</button>
         </div>
-        <button onclick="callAPI('/api/register', 'POST', { name: document.getElementById('regName').value, email: document.getElementById('regEmail').value })" class="w-full py-2 bg-teal-500/20 hover:bg-teal-500/30 text-teal-400 rounded-lg transition">
-          تنفيذ
-        </button>
+
+        <div class="glass rounded-2xl p-5 border border-white/10 card-hover">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-indigo-500/20 rounded-lg flex items-center justify-center">
+              <span class="text-indigo-400">👥</span>
+            </div>
+            <div>
+              <h3 class="font-bold">Users</h3>
+              <p class="text-xs text-gray-400">GET /api/users</p>
+            </div>
+          </div>
+          <button onclick="callAPI('/api/users?limit=10')" class="w-full py-2 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 rounded-lg transition">تنفيذ</button>
+        </div>
+
+        <div class="glass rounded-2xl p-5 border border-white/10 card-hover">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-pink-500/20 rounded-lg flex items-center justify-center">
+              <span class="text-pink-400">📦</span>
+            </div>
+            <div>
+              <h3 class="font-bold">Products</h3>
+              <p class="text-xs text-gray-400">GET /api/products</p>
+            </div>
+          </div>
+          <button onclick="callAPI('/api/products?category=all')" class="w-full py-2 bg-pink-500/20 hover:bg-pink-500/30 text-pink-400 rounded-lg transition">تنفيذ</button>
+        </div>
+
+        <div class="glass rounded-2xl p-5 border border-white/10 card-hover">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-yellow-500/20 rounded-lg flex items-center justify-center">
+              <span class="text-yellow-400">⏱️</span>
+            </div>
+            <div>
+              <h3 class="font-bold">Slow Request</h3>
+              <p class="text-xs text-gray-400">GET /api/slow</p>
+            </div>
+          </div>
+          <input type="number" id="slowMs" value="2000" class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded mb-2 text-sm" placeholder="مللي ثانية">
+          <button onclick="callAPI('/api/slow?ms=' + document.getElementById('slowMs').value)" class="w-full py-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 rounded-lg transition">تنفيذ</button>
+        </div>
+
       </div>
+    </div>
 
-      <!-- Batch Events -->
-      <div class="glass rounded-2xl p-6 border border-white/10 card-hover">
-        <div class="flex items-center gap-3 mb-4">
-          <div class="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center">
-            <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
-            </svg>
+    <!-- Batch Tab -->
+    <div id="panel-batch" class="tab-panel hidden">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <div class="glass rounded-2xl p-6 border border-white/10">
+          <h3 class="font-bold text-lg mb-4 flex items-center gap-2">
+            <span class="text-red-400">🚨</span> توليد أخطاء متعددة
+          </h3>
+          <p class="text-sm text-gray-400 mb-4">إرسال أخطاء متعددة لـ PostHog دفعة واحدة</p>
+          <div class="flex gap-3 mb-4">
+            <input type="number" id="batchErrorCount" value="5" min="1" max="20" class="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded text-sm" placeholder="العدد">
           </div>
-          <div>
-            <h3 class="font-bold">Batch Events</h3>
-            <p class="text-xs text-gray-400">POST /api/batch-events</p>
+          <button onclick="batchErrors()" class="w-full py-3 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition font-bold">
+            توليد الأخطاء
+          </button>
+        </div>
+
+        <div class="glass rounded-2xl p-6 border border-white/10">
+          <h3 class="font-bold text-lg mb-4 flex items-center gap-2">
+            <span class="text-blue-400">📊</span> توليد أحداث متعددة
+          </h3>
+          <p class="text-sm text-gray-400 mb-4">إرسال أحداث متعددة لـ PostHog دفعة واحدة</p>
+          <div class="flex gap-3 mb-4">
+            <input type="number" id="batchEventCount" value="10" min="1" max="100" class="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded text-sm" placeholder="العدد">
+          </div>
+          <button onclick="batchEvents()" class="w-full py-3 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition font-bold">
+            توليد الأحداث
+          </button>
+        </div>
+
+        <div class="glass rounded-2xl p-6 border border-white/10 md:col-span-2">
+          <h3 class="font-bold text-lg mb-4 flex items-center gap-2">
+            <span class="text-orange-400">⚡</span> اختبار ضغط سريع
+          </h3>
+          <p class="text-sm text-gray-400 mb-4">إرسال طلبات متتالية لاختبار الأداء</p>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <button onclick="stressTest(10)" class="py-3 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 rounded-lg transition">10 طلبات</button>
+            <button onclick="stressTest(25)" class="py-3 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 rounded-lg transition">25 طلب</button>
+            <button onclick="stressTest(50)" class="py-3 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 rounded-lg transition">50 طلب</button>
+            <button onclick="stressTest(100)" class="py-3 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 rounded-lg transition">100 طلب</button>
           </div>
         </div>
-        <p class="text-sm text-gray-300 mb-4">إرسال أحداث متعددة دفعة واحدة</p>
-        <div class="flex gap-2 mb-3">
-          <input type="number" id="batchCount" value="10" min="1" max="100" class="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm" placeholder="العدد">
-        </div>
-        <button onclick="callAPI('/api/batch-events', 'POST', { count: parseInt(document.getElementById('batchCount').value), eventType: 'batch_test' })" class="w-full py-2 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 rounded-lg transition">
-          تنفيذ
-        </button>
+
       </div>
     </div>
 
     <!-- Response Panel -->
-    <div class="glass rounded-2xl border border-white/10 overflow-hidden">
+    <div class="glass rounded-2xl border border-white/10 overflow-hidden mt-8">
       <div class="flex items-center justify-between px-6 py-4 border-b border-white/10">
         <h3 class="font-bold flex items-center gap-2">
           <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
           </svg>
-          الاستجابة
+          آخر استجابة
         </h3>
-        <button onclick="clearResponse()" class="text-sm text-gray-400 hover:text-white transition">مسح</button>
+        <div class="flex items-center gap-3">
+          <span id="responseInfo" class="text-xs text-gray-400 hidden">
+            <span id="responseMethod" class="px-2 py-1 rounded bg-white/10">GET</span>
+            <span id="responseStatus" class="px-2 py-1 rounded bg-white/10 mr-2">200</span>
+            <span id="responseTime" class="px-2 py-1 rounded bg-white/10 mr-2">0ms</span>
+          </span>
+          <button onclick="clearResponse()" class="text-sm text-gray-400 hover:text-white transition">مسح</button>
+        </div>
       </div>
       <div class="p-6">
-        <div id="responseInfo" class="flex gap-4 mb-4 text-sm hidden">
-          <span class="px-3 py-1 rounded-full bg-white/10" id="responseMethod">GET</span>
-          <span class="px-3 py-1 rounded-full bg-white/10" id="responseStatus">200</span>
-          <span class="px-3 py-1 rounded-full bg-white/10" id="responseTime">0ms</span>
-        </div>
-        <pre id="responseBody" class="bg-black/30 rounded-xl p-4 overflow-auto max-h-96 text-sm text-gray-300"><code>// انقر على أي زر لتنفيذ الطلب</code></pre>
+        <pre id="responseBody" class="bg-black/30 rounded-xl p-4 overflow-auto max-h-80 text-sm text-gray-300 scrollbar-thin"><code>// انقر على أي زر لتنفيذ الطلب</code></pre>
       </div>
     </div>
   </main>
-
-  <!-- Footer -->
-  <footer class="glass border-t border-white/10 mt-8">
-    <div class="container mx-auto px-6 py-4">
-      <div class="flex items-center justify-between text-sm text-gray-400">
-        <p>PostHog PoC Dashboard</p>
-        <p>Built with ❤️ for testing</p>
-      </div>
-    </div>
-  </footer>
 
   <script>
     let stats = { requests: 0, success: 0, errors: 0, totalTime: 0 };
@@ -359,20 +474,9 @@
     function showToast(message, type = 'success') {
       const container = document.getElementById('toastContainer');
       const toast = document.createElement('div');
-      const colors = {
-        success: 'bg-green-500/90',
-        error: 'bg-red-500/90',
-        info: 'bg-blue-500/90'
-      };
-      toast.className = `toast px-4 py-3 rounded-lg ${colors[type]} text-white text-sm flex items-center gap-2`;
-      toast.innerHTML = `
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          ${type === 'success' ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>' : 
-            type === 'error' ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>' :
-            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>'}
-        </svg>
-        ${message}
-      `;
+      const colors = { success: 'bg-green-500/90', error: 'bg-red-500/90', info: 'bg-blue-500/90' };
+      toast.className = `toast px-4 py-3 rounded-lg ${colors[type]} text-white text-sm`;
+      toast.textContent = message;
       container.appendChild(toast);
       setTimeout(() => toast.remove(), 3000);
     }
@@ -382,8 +486,20 @@
       document.getElementById('successCount').textContent = stats.success;
       document.getElementById('errorCount').textContent = stats.errors;
       document.getElementById('avgResponse').textContent = stats.requests > 0 
-        ? Math.round(stats.totalTime / stats.requests) + 'ms' 
-        : '0ms';
+        ? Math.round(stats.totalTime / stats.requests) + 'ms' : '0ms';
+    }
+
+    function showTab(tabName) {
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.remove('bg-red-500/20', 'text-red-400', 'bg-blue-500/20', 'text-blue-400', 'bg-orange-500/20', 'text-orange-400');
+        b.classList.add('bg-white/5', 'text-gray-400');
+      });
+      document.getElementById(`panel-${tabName}`).classList.remove('hidden');
+      const btn = document.getElementById(`tab-${tabName}`);
+      btn.classList.remove('bg-white/5', 'text-gray-400');
+      const colors = { errors: ['bg-red-500/20', 'text-red-400'], apis: ['bg-blue-500/20', 'text-blue-400'], batch: ['bg-orange-500/20', 'text-orange-400'] };
+      btn.classList.add(...colors[tabName]);
     }
 
     function clearResponse() {
@@ -396,52 +512,78 @@
       stats.requests++;
       
       try {
-        const options = {
-          method,
-          headers: { 'Content-Type': 'application/json' }
-        };
+        const options = { method, headers: { 'Content-Type': 'application/json' } };
         if (body) options.body = JSON.stringify(body);
         
         const response = await fetch(endpoint, options);
-        const endTime = performance.now();
-        const duration = Math.round(endTime - startTime);
-        
+        const duration = Math.round(performance.now() - startTime);
         stats.totalTime += duration;
         
         const data = await response.json();
         
-        // Update response panel
         document.getElementById('responseInfo').classList.remove('hidden');
         document.getElementById('responseMethod').textContent = method;
-        document.getElementById('responseMethod').className = `px-3 py-1 rounded-full ${method === 'GET' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`;
         document.getElementById('responseStatus').textContent = response.status;
-        document.getElementById('responseStatus').className = `px-3 py-1 rounded-full ${response.ok ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`;
+        document.getElementById('responseStatus').className = `px-2 py-1 rounded ${response.ok ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`;
         document.getElementById('responseTime').textContent = duration + 'ms';
         document.getElementById('responseBody').innerHTML = `<code>${JSON.stringify(data, null, 2)}</code>`;
         
         if (response.ok) {
           stats.success++;
-          showToast(`تم تنفيذ ${endpoint} بنجاح`, 'success');
+          showToast(`✓ ${endpoint}`, 'success');
         } else {
           stats.errors++;
-          showToast(`خطأ ${response.status}: ${data.error || 'Unknown'}`, 'error');
+          showToast(`✗ ${response.status}: ${data.error?.message || 'Error'}`, 'error');
         }
       } catch (error) {
         stats.errors++;
-        const endTime = performance.now();
-        stats.totalTime += Math.round(endTime - startTime);
-        
-        document.getElementById('responseInfo').classList.remove('hidden');
-        document.getElementById('responseMethod').textContent = method;
-        document.getElementById('responseStatus').textContent = 'ERR';
-        document.getElementById('responseStatus').className = 'px-3 py-1 rounded-full bg-red-500/20 text-red-400';
-        document.getElementById('responseTime').textContent = Math.round(endTime - startTime) + 'ms';
-        document.getElementById('responseBody').innerHTML = `<code class="text-red-400">${error.message}</code>`;
-        
-        showToast('خطأ في الاتصال: ' + error.message, 'error');
+        stats.totalTime += Math.round(performance.now() - startTime);
+        showToast('خطأ في الاتصال', 'error');
       }
       
       updateStats();
+    }
+
+    function triggerError(path) {
+      callAPI(`/api/error/${path}`);
+    }
+
+    function triggerValidation() {
+      const email = document.getElementById('valEmail').value || 'invalid-email';
+      const password = document.getElementById('valPassword').value || '123';
+      callAPI('/api/error/validation', 'POST', { email, password, age: -5 });
+    }
+
+    async function generateRandomErrors(count) {
+      showToast(`جاري توليد ${count} أخطاء عشوائية...`, 'info');
+      for (let i = 0; i < count; i++) {
+        await callAPI('/api/error/random');
+        await new Promise(r => setTimeout(r, 200));
+      }
+    }
+
+    async function batchErrors() {
+      const count = parseInt(document.getElementById('batchErrorCount').value) || 5;
+      await callAPI('/api/batch-errors', 'POST', { count });
+    }
+
+    async function batchEvents() {
+      const count = parseInt(document.getElementById('batchEventCount').value) || 10;
+      await callAPI('/api/batch-events', 'POST', { count, eventType: 'batch_test' });
+    }
+
+    async function stressTest(count) {
+      showToast(`جاري إرسال ${count} طلب...`, 'info');
+      const endpoints = ['/health', '/api/stats', '/api/orders', '/api/error/random'];
+      const promises = [];
+      
+      for (let i = 0; i < count; i++) {
+        const endpoint = endpoints[i % endpoints.length];
+        promises.push(callAPI(endpoint));
+      }
+      
+      await Promise.all(promises);
+      showToast(`✓ تم إرسال ${count} طلب`, 'success');
     }
   </script>
 </body>
