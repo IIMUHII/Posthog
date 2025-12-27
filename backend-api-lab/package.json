@@ -1,13 +1,19 @@
 {
-  "name": "backend-api-lab",
+  "name": "posthog-poc-caprover",
   "version": "1.0.0",
+  "description": "PostHog Proof of Concept with CapRover",
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "node --watch index.js"
   },
   "dependencies": {
     "express": "^4.19.2",
-    "posthog-node": "^4.0.0"
+    "posthog-node": "^4.0.0",
+    "uuid": "^9.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
